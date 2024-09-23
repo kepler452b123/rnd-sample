@@ -34,11 +34,29 @@ const MasterDetailGrid = () => {
     const [currentSelectedKeyDetail, setCurrentSelectedKeyDetail] = useState<any>(null);
     const [currentDeselectedKeyDetail, setCurrentDeselectedKeyDetail] = useState<any>(null);
     const [detailGridData, setDetailGridData] = useState(new Map<number, any[]>());
-    const [detailRefsCreated, setDetailRefsCreated] = useState<any>(0);
-    const [testRef, setTestRef] = useState<any>(null);
     const masterComponent = useRef<any>(null);
-    const detailComponent = useRef<any>(null);
     const detailGridRefs = useRef(new Map<number, any>());
+
+    const expandAll = useCallback(() => {
+        const dataGrid = masterComponent.current.instance();
+        employees.forEach((row) => {
+            dataGrid.expandRow(row.ID); // Assuming ID is your unique identifier
+        });
+    }, []);
+
+    // Collapse all detail grids
+    const collapseAll = useCallback(() => {
+        const dataGrid = masterComponent.current.instance();
+        employees.forEach((row) => {
+            dataGrid.collapseRow(row.ID);
+        });
+    }, []);
+
+    // Automatically expand all detail grids when the content is ready
+    const onContentReady = useCallback(() => {
+        collapseAll(); // Automatically expand all rows after render
+        
+    }, [expandAll]);
 
     const saveDetailGridData = (key: number) => {
         const detailGridInstance = detailGridRefs.current.get(key);
@@ -61,11 +79,14 @@ const MasterDetailGrid = () => {
             return;
         }
         expandedBySelection.current = true;
-        component.expandRow(currentSelectedRowKeys[0]);
+        //component.expandRow(currentSelectedRowKeys[0]);
+        if (!detailGridRefs.current.get((currentSelectedRowKeys[0])) && !detailGridRefs.current.get((currentDeselectedRowKeys[0]))){
+            return;
+        }
         if (currentDeselectedRowKeys.length > 0){
             setCurrentDeselectedKey(currentDeselectedRowKeys[0]);
         }
-        if (currentSelectedRowKeys.length > 0){
+        else if (currentSelectedRowKeys.length > 0){
             setCurrentSelectedKey(currentSelectedRowKeys[0]);
         }
         else{
@@ -75,14 +96,7 @@ const MasterDetailGrid = () => {
       }, []);
 
     useEffect( () => {
-        if (currentSelectedKey && detailGridData.has(currentSelectedKey)) {
-            const savedData = detailGridData.get(currentSelectedKey);
-            const detailGridInstance = detailGridRefs.current.get(currentSelectedKey);
-            if (detailGridInstance) {
-                detailGridInstance.instance.selectRows(savedData, true);
-            }
-        }
-        else if (currentSelectedKey){
+            if (currentSelectedKey){
             const data = employees.find(employee => employee.ID == currentSelectedKey);
             if(!data){
                 return;
@@ -97,6 +111,12 @@ const MasterDetailGrid = () => {
     useEffect( () => {
         if (currentDeselectedKey){
             //console.log(`currentDeselectedKey set: ${currentDeselectedKey}`);
+            
+            
+            if(detailGridRefs.current.get(currentDeselectedKey).instance().getSelectedRowKeys().length == 0){
+                console.log(detailGridRefs.current.get(currentDeselectedKey).instance().getSelectedRowKeys().length);
+                return;
+            }
             const data = employees.find(employee => employee.ID == currentDeselectedKey);
             if(!data){
                 return;
@@ -122,7 +142,7 @@ const MasterDetailGrid = () => {
             setCurrentSelectedKeyDetail(currentSelectedRowKeys);
         }
         if (currentDeselectedRowKeys.length > 0){
-            //console.log(`currentDeselectedRowKeys: ${currentDeselectedRowKeys}`);
+            setCurrentDeselectedKeyDetail(currentDeselectedRowKeys);
         }
         /*
         if (currentDeselectedRowKeys.length > 0){
@@ -142,17 +162,52 @@ const MasterDetailGrid = () => {
                 const id = emp.ID;
                 if (!masterComponent.current.instance().getSelectedRowKeys().includes(id)){
                         programmaticSelectionMaster.current = true;
-                        masterComponent.current.instance().selectRows(id, true);
+                        masterComponent.current.instance().selectRows(id);
                 }
             }
         }
     }, [currentSelectedKeyDetail])
 
+    /*
+        To find out if there is an ORDER row selected with a matching employee ID:
+        1. Find out the employee ID of the order that was just deselected
+        2. Find out how many rows of the detail grid under the employee ID are selected
+        3. If 0, then deselect the master row. 
+    */
+    useEffect(() => {
+        if (currentDeselectedKeyDetail) {
+            // Find the employee (master row) associated with the deselected detail row
+            const employeeId = orders.find(order => order.OrderID == currentDeselectedKeyDetail)?.EmployeeID;
+    
+            // Check if this employee has any remaining selected detail rows
+            if(!employeeId){
+                return;
+            }
+            const hasSelectedDetails = detailGridRefs.current.get(employeeId).instance().getSelectedRowKeys().length
+    
+            // If no selected detail rows are found, deselect the corresponding master row
+            if (hasSelectedDetails === 0) {
+                const selectedRows = masterComponent.current.instance().getSelectedRowKeys();
+    
+                // Filter out the row that no longer has selected details
+                const updatedSelectedRows = selectedRows.filter( (rowKey:string|number) => rowKey !== employeeId);
+                programmaticSelectionMaster.current = true;
+                // Programmatically update the selection, excluding the row that should be deselected
+                masterComponent.current.instance().selectRows(updatedSelectedRows);
+            }
+        }
+    }, [currentDeselectedKeyDetail]);
+    
+
+
+
     const attachDetailRef = useCallback ( (ID:number, el:any) => {
-        
-            detailGridRefs.current.set(ID, el);
-            console.log(detailGridRefs.current.get(ID));
-    }, [])
+            if (masterComponent != null){
+                detailGridRefs.current.set(ID, el);
+                //masterComponent.current.instance().expandRow(ID);
+                console.log(detailGridRefs.current.get(ID));
+            }
+    }, [masterComponent])
 
     const DetailTemplate = React.useCallback((props: DataGridTypes.MasterDetailTemplateData) => {
         const { FirstName, LastName } = props.data.data;
@@ -166,7 +221,15 @@ const MasterDetailGrid = () => {
                 
                 <DataGrid
                     ref={(el) => {
-                        attachDetailRef(props.data.data.ID, el);
+                        if (el){
+                            attachDetailRef(props.data.data.ID, el); 
+                        }
+                    }}
+                    onInitialized={ () => {
+                        if (expandedBySelection && detailGridRefs.current.get(props.data.data.ID) != null && masterComponent.current){
+                            masterComponent.current.instance().selectRows(101);
+                            console.log("onInitialized fired");
+                        }
                     }}
                     dataSource={dataSource}
                     showBorders={true}
@@ -193,6 +256,7 @@ const MasterDetailGrid = () => {
             showBorders={true}
             repaintChangesOnly={true}
             onSelectionChanged={onSelectionChanged}
+            //onContentReady={onContentReady}
             //onRowExpanded={onRowExpanded}
         >
             <MasterDetail enabled={true} component={DetailTemplate}/> 
