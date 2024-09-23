@@ -176,23 +176,18 @@ const MasterDetailGrid = () => {
     */
     useEffect(() => {
         if (currentDeselectedKeyDetail) {
-            // Find the employee (master row) associated with the deselected detail row
             const employeeId = orders.find(order => order.OrderID == currentDeselectedKeyDetail)?.EmployeeID;
     
-            // Check if this employee has any remaining selected detail rows
             if(!employeeId){
                 return;
             }
             const hasSelectedDetails = detailGridRefs.current.get(employeeId).instance().getSelectedRowKeys().length
     
-            // If no selected detail rows are found, deselect the corresponding master row
             if (hasSelectedDetails === 0) {
                 const selectedRows = masterComponent.current.instance().getSelectedRowKeys();
     
-                // Filter out the row that no longer has selected details
                 const updatedSelectedRows = selectedRows.filter( (rowKey:string|number) => rowKey !== employeeId);
                 programmaticSelectionMaster.current = true;
-                // Programmatically update the selection, excluding the row that should be deselected
                 masterComponent.current.instance().selectRows(updatedSelectedRows);
             }
         }
