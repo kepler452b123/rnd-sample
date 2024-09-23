@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef} from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback} from "react";
 import { DataGrid, Column, MasterDetail, DataGridTypes, Editing, Selection } from "devextreme-react/data-grid";
 import 'devextreme/dist/css/dx.light.css';
 import ArrayStore from 'devextreme/data/array_store';
@@ -41,7 +41,7 @@ const MasterDetailGrid = () => {
     }, [currentMaster, employees]);  
 
 
-    const checkSelection = (rowData: any) => {
+    const checkSelection = React.useCallback((rowData: any) => {
         const order = orders.find(order => rowData.OrderID === order.OrderID);
         const emp = employees.find(emp => rowData.EmployeeID === emp.ID);
         const checked = order?.Checked || false;
@@ -61,14 +61,15 @@ const MasterDetailGrid = () => {
         return (
             <div>
                 <CheckBox
+                    key = {order.OrderID}
                     value={checked}  
                     onValueChanged={handleCheckboxChangeWrapper}
                 />
             </div>
         );
-    };
+    }, []);
 
-    const checkMasterSelection = (rowData: any) => {
+    const checkMasterSelection = React.useCallback((rowData: any) => {
         const emp = employees.find(employee => rowData.ID === employee.ID);
         const ordersForEmp = orders.filter(order => order.EmployeeID === rowData.ID);
         const isChecked = ordersForEmp.some(order => order.Checked) || emp?.Checked;
@@ -86,13 +87,14 @@ const MasterDetailGrid = () => {
         return (
             <div>
                 <CheckBox
+                    key={emp.ID}
                     value= {isChecked}
                     defaultValue={isChecked}
                     onValueChanged={handleCheckboxChangeWrapper}
                 />
             </div>
         );
-    };
+    },[]);
 
     const DetailTemplate = (props: DataGridTypes.MasterDetailTemplateData) => {
         const { FirstName, LastName } = props.data.data;
@@ -114,7 +116,10 @@ const MasterDetailGrid = () => {
                     <Column dataField="OrderID" caption="Order ID" width={100} />
                     <Column dataField="CustomerName" caption="Customer Name" />
                     <Column dataField="OrderDate" caption="Order Date" dataType="date" />
-                    
+                    <Column 
+                        caption="Select"
+                        cellRender={(cellInfo: any) => ( checkSelection(cellInfo.data))} / >
+
                 </DataGrid>
             </div>
         );
